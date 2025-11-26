@@ -1,0 +1,16 @@
+# Dockerfile.frontend
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+COPY frontend/package*.json ./
+
+RUN npm install
+
+COPY .env .env
+
+COPY ./frontend /app
+
+RUN npm run build
+
+CMD ["npx", "vite", "preview", "--port", "80", "--host", "0.0.0.0"]

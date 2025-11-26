@@ -1,0 +1,62 @@
+services:
+  # === Traefik Reverse Proxy ===
+  traefik:
+    image: traefik:v2.9
+    container_name: traefik
+    command:
+      - --configFile=/traefik.yml
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/traefik.yml:/traefik.yml
+      - ./deploy/acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - web
+
+  # === Backend API Service ===
+  backend:
+    container_name: backend
+    build:
+      context: .
+      dockerfile: deploy/backend
+    restart: unless-stopped
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.backend.loadbalancer.server.port=5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+  # === Frontend SPA Service ===
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      dockerfile: deploy/frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+# === Сети ===
+networks:
+  web:
+    driver: bridge
